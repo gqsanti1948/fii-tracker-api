@@ -210,9 +210,34 @@ small { font-size: 11px; }
 
 .btn-edit:hover { opacity: 1; }
 
+.chart-toggle {
+    display: flex;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+}
+
+.chart-btn {
+    padding: 0.3rem 1rem;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--text-muted);
+    font-size: 13px;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+}
+
+.chart-btn:hover { background: var(--surface2); color: var(--text); }
+
+.chart-btn.active {
+    background: var(--accent-dim);
+    color: var(--accent);
+    border-color: var(--accent);
+}
+
 .chart-container {
     max-width: 480px;
-    margin: 1rem 0 2rem;
+    margin: 0 0 2rem;
 }
 
 /* ========== BADGES ========== */

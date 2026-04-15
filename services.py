@@ -185,6 +185,9 @@ def calcular_resumo_carteira() -> dict:
     for pos in posicoes:
         pos["proventos_recebidos"] = round(proventos_por_ticker.get(pos["ticker"], 0), 2)
 
+    for pos in posicoes:
+        pos["peso"] = round((pos["valor_atual"] / patrimonio_atual * 100), 1) if patrimonio_atual > 0 else 0
+
     return {
         "posicoes": posicoes,
         "total_investido": round(total_investido_carteira, 2),

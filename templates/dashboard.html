@@ -28,93 +28,138 @@
 
 {% if resumo.posicoes %}
 <h2>Diversificação</h2>
+<div class="chart-toggle">
+    <button id="btn-ativos"    class="chart-btn active" onclick="mostrarGrafico('ativos')">Por Ativo</button>
+    <button id="btn-segmentos" class="chart-btn"        onclick="mostrarGrafico('segmentos')">Por Segmento</button>
+</div>
 <div class="chart-container">
     <canvas id="graficoDiversificacao"></canvas>
 </div>
 
 <script>
-    const labels    = {{ resumo.posicoes | map(attribute='ticker')   | list | tojson }};
-    const valores   = {{ resumo.posicoes | map(attribute='valor_atual') | list | tojson }};
-    const segmentos = {{ resumo.posicoes | map(attribute='segmento') | list | tojson }};
+    /* Dados brutos vindos do Python, apenas posições com cotação disponível */
+    const dadosBrutos = [
+        {% for pos in resumo.posicoes %}
+        { ticker: {{ pos.ticker|tojson }}, valor: {{ pos.valor_atual }}, segmento: {{ pos.segmento|tojson }} },
+        {% endfor %}
+    ].filter(d => d.valor > 0);
+
+    /* Ordena por segmento e, dentro do segmento, por ticker */
+    dadosBrutos.sort((a, b) =>
+        a.segmento.localeCompare(b.segmento) || a.ticker.localeCompare(b.ticker)
+    );
 
     /*
-        Cor base por segmento. FIIs do mesmo segmento recebem a mesma cor base;
-        variamos a opacidade (alpha) para distingui-los entre si.
-        Cores escolhidas para harmonizar com o tema escuro do app.
+        Paleta HSL por segmento.
+        Hue e saturação são fixos por segmento.
+        A luminosidade varia linearmente de 65% (primeiro ativo) até 42% (último),
+        tornando o tom consistentemente mais escuro dentro de cada grupo.
+        Com 1 ativo no segmento, usa L 55% (tom médio).
     */
-    const corPorSegmento = {
-        'Logística':          '16, 185, 129',   /* verde  -- var(--accent)  */
-        'Shoppings':          '245, 158, 11',   /* âmbar  -- var(--warning) */
-        'Lajes Corporativas': '59, 130, 246',   /* azul   -- var(--blue)    */
-        'Papel / CRI':        '139, 92, 246',   /* roxo   -- var(--purple)  */
-        'Residencial':        '236, 72, 153',   /* rosa                     */
-        'Hotelaria':          '251, 146, 60',   /* laranja                  */
-        'Fundo de Fundos':    '20, 184, 166',   /* teal                     */
-        'Industrial':         '132, 204, 22',   /* lima                     */
-        'Multimercado':       '234, 88, 12',    /* laranja escuro            */
-        'Outros':             '156, 163, 175',  /* cinza  -- var(--text-dim)*/
+    const segConfig = {
+        'Logística':          { h: 160, s: 60 },
+        'Shoppings':          { h:  38, s: 70 },
+        'Lajes Corporativas': { h: 215, s: 70 },
+        'Papel / CRI':        { h: 270, s: 60 },
+        'Residencial':        { h: 330, s: 60 },
+        'Hotelaria':          { h:  25, s: 70 },
+        'Fundo de Fundos':    { h: 175, s: 60 },
+        'Industrial':         { h:  85, s: 60 },
+        'Multimercado':       { h:  15, s: 70 },
+        'Outros':             { h: 220, s: 12 },
     };
 
-    /*
-        Para cada posição, calculamos qual a opacidade dentro do segmento.
-        Ex: 2 FIIs de Logística → opacidades 1.0 e 0.6
-            3 FIIs de Shoppings → opacidades 1.0, 0.75 e 0.55
-        Assim ficam distinguíveis mas claramente "da mesma família".
-    */
-    const contagemPorSegmento = {};
-    const indicePorSegmento   = {};
-    segmentos.forEach(seg => { contagemPorSegmento[seg] = (contagemPorSegmento[seg] || 0) + 1; });
+    function corAtivo(seg, idx, total) {
+        const { h, s } = segConfig[seg] || segConfig['Outros'];
+        const l = total === 1 ? 55 : 65 - (idx / (total - 1)) * 23;
+        return `hsl(${h}, ${s}%, ${l.toFixed(1)}%)`;
+    }
 
-    const cores = segmentos.map(seg => {
-        const rgb   = corPorSegmento[seg] || corPorSegmento['Outros'];
-        const total_seg = contagemPorSegmento[seg];
-        const idx   = indicePorSegmento[seg] = (indicePorSegmento[seg] || 0);
-        indicePorSegmento[seg]++;
-        /* Opacidade vai de 1.0 (primeiro) até 0.5 (último), espaçada uniformemente */
-        const alpha = total_seg === 1 ? 1.0 : 1.0 - (idx / total_seg) * 0.5;
-        return `rgba(${rgb}, ${alpha.toFixed(2)})`;
-    });
+    function corSegmento(seg) {
+        const { h, s } = segConfig[seg] || segConfig['Outros'];
+        return `hsl(${h}, ${s}%, 55%)`;
+    }
 
-    const total = valores.reduce((a, b) => a + b, 0);
+    /* Dataset "Por Ativo": ativos agrupados e ordenados por segmento */
+    function buildDadosAtivos() {
+        const cont = {}, idx = {};
+        dadosBrutos.forEach(d => { cont[d.segmento] = (cont[d.segmento] || 0) + 1; });
 
-    new Chart(document.getElementById('graficoDiversificacao'), {
-        type: 'pie',
-        data: {
-            labels: labels,
-            datasets: [{
-                data: valores,
-                backgroundColor: cores,
-                borderColor: '#0f1117',
-                borderWidth: 2,
-            }]
-        },
-        options: {
-            responsive: true,
-            plugins: {
-                legend: {
-                    position: 'right',
-                    labels: { color: '#e4e4e7', padding: 16, font: { size: 13 } }
-                },
-                tooltip: {
-                    callbacks: {
-                        label: function(context) {
-                            const pct = ((context.parsed / total) * 100).toFixed(1);
-                            return ` ${context.label}: R$ ${context.parsed.toFixed(2)} (${pct}%)`;
+        const labels = [], valores = [], cores = [];
+        dadosBrutos.forEach(d => {
+            const i = idx[d.segmento] = (idx[d.segmento] || 0);
+            idx[d.segmento]++;
+            labels.push(d.ticker);
+            valores.push(d.valor);
+            cores.push(corAtivo(d.segmento, i, cont[d.segmento]));
+        });
+        return { labels, valores, cores };
+    }
+
+    /* Dataset "Por Segmento": agrega valor por segmento, ordena por peso desc */
+    function buildDadosSegmentos() {
+        const mapa = {};
+        dadosBrutos.forEach(d => { mapa[d.segmento] = (mapa[d.segmento] || 0) + d.valor; });
+        const entries = Object.entries(mapa).sort((a, b) => b[1] - a[1]);
+        return {
+            labels: entries.map(e => e[0]),
+            valores: entries.map(e => parseFloat(e[1].toFixed(2))),
+            cores:  entries.map(e => corSegmento(e[0])),
+        };
+    }
+
+    let chart = null;
+
+    function criarGrafico(dados) {
+        const total = dados.valores.reduce((a, b) => a + b, 0);
+        if (chart) chart.destroy();
+        chart = new Chart(document.getElementById('graficoDiversificacao'), {
+            type: 'pie',
+            data: {
+                labels: dados.labels,
+                datasets: [{
+                    data: dados.valores,
+                    backgroundColor: dados.cores,
+                    borderColor: '#0f1117',
+                    borderWidth: 2,
+                }]
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    legend: {
+                        position: 'right',
+                        labels: { color: '#e4e4e7', padding: 16, font: { size: 13 } }
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: function(ctx) {
+                                const pct = (ctx.parsed / total * 100).toFixed(1);
+                                return ` ${ctx.label}: R$ ${ctx.parsed.toFixed(2)} (${pct}%)`;
+                            }
+                        }
+                    },
+                    datalabels: {
+                        color: '#ffffff',
+                        font: { weight: 'bold', size: 12 },
+                        formatter: function(value) {
+                            const pct = value / total * 100;
+                            return pct < 5 ? '' : pct.toFixed(1) + '%';
                         }
                     }
-                },
-                datalabels: {
-                    color: '#ffffff',
-                    font: { weight: 'bold', size: 13 },
-                    formatter: function(value) {
-                        const pct = (value / total * 100);
-                        return pct < 5 ? '' : pct.toFixed(1) + '%';
-                    }
                 }
-            }
-        },
-        plugins: [ChartDataLabels]
-    });
+            },
+            plugins: [ChartDataLabels]
+        });
+    }
+
+    function mostrarGrafico(modo) {
+        document.getElementById('btn-ativos').classList.toggle('active', modo === 'ativos');
+        document.getElementById('btn-segmentos').classList.toggle('active', modo === 'segmentos');
+        criarGrafico(modo === 'ativos' ? buildDadosAtivos() : buildDadosSegmentos());
+    }
+
+    mostrarGrafico('ativos');
 </script>
 {% endif %}
 
@@ -127,11 +172,13 @@
         <thead>
             <tr>
                 <th>Ticker</th>
+                <th>Segmento</th>
                 <th>Cotas</th>
                 <th>Preço Médio</th>
                 <th>Preço Atual</th>
                 <th>Investido</th>
                 <th>Valor Atual</th>
+                <th>Peso</th>
                 <th>L/P</th>
                 <th>Proventos</th>
             </tr>
@@ -140,6 +187,7 @@
             {% for pos in resumo.posicoes %}
             <tr>
                 <td><strong>{{ pos.ticker }}</strong></td>
+                <td><span class="badge">{{ pos.segmento }}</span></td>
                 <td>{{ pos.cotas }}</td>
                 <td>R$ {{ "%.2f"|format(pos.preco_medio) }}</td>
                 <td>
@@ -150,6 +198,7 @@
                 </td>
                 <td>R$ {{ "%.2f"|format(pos.total_investido) }}</td>
                 <td>R$ {{ "%.2f"|format(pos.valor_atual) }}</td>
+                <td>{{ pos.peso }}%</td>
                 <td class="{{ 'positive' if pos.lucro_prejuizo >= 0 else 'negative' }}">
                     R$ {{ "%.2f"|format(pos.lucro_prejuizo) }}
                     <small>({{ "%.2f"|format(pos.lucro_pct) }}%)</small>
