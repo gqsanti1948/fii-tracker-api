@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+
+{% block content %}
+<h1>Editar Posição</h1>
+
+{#
+    CONCEITO — action com url_for()
+    Em vez de escrever a URL na mão ("/posicoes/editar/3"), usamos url_for()
+    para que o Flask gere a URL correta a partir do nome da função.
+    Se você renomear a rota no futuro, o url_for() continua funcionando.
+#}
+<div class="form-card">
+    <form method="POST" action="{{ url_for('main.editar_posicao', id=posicao.id) }}">
+        <div class="form-grid">
+
+            <div class="form-group">
+                <label for="ticker">Ticker</label>
+                {#
+                    CONCEITO — value="{{ posicao.ticker }}"
+                    O Jinja2 substitui pela valor real do banco antes de entregar o HTML.
+                    Resultado final no navegador: <input ... value="BTLG11">
+                #}
+                <input type="text" id="ticker" name="ticker"
+                       value="{{ posicao.ticker }}"
+                       required maxlength="10" style="text-transform: uppercase;">
+            </div>
+
+            <div class="form-group">
+                <label for="quantidade">Quantidade</label>
+                <input type="number" id="quantidade" name="quantidade"
+                       value="{{ posicao.quantidade }}"
+                       required min="1">
+            </div>
+
+            <div class="form-group">
+                <label for="preco_unitario">Preço Unitário (R$)</label>
+                {#
+                    CONCEITO — filtro "%.2f"|format(valor)
+                    Formata o número com 2 casas decimais.
+                    Sem isso, um float como 103.8700001 apareceria no campo.
+                #}
+                <input type="number" id="preco_unitario" name="preco_unitario"
+                       value="{{ '%.2f'|format(posicao.preco_unitario) }}"
+                       required step="0.01" min="0">
+            </div>
+
+            <div class="form-group">
+                <label for="data_compra">Data da Compra</label>
+                {#
+                    CONCEITO — strftime("%Y-%m-%d")
+                    O campo <input type="date"> espera datas no formato ISO: "2026-04-15".
+                    O método strftime() do Python converte o objeto date para esse formato.
+                #}
+                <input type="date" id="data_compra" name="data_compra"
+                       value="{{ posicao.data_compra.strftime('%Y-%m-%d') }}">
+            </div>
+
+        </div>
+
+            <div class="form-group">
+                <label for="segmento">Segmento</label>
+                {#
+                    CONCEITO — selected no <select>
+                    Para pré-selecionar uma opção, adicionamos o atributo "selected"
+                    na <option> cujo value bate com o valor atual.
+                    O filtro "default('Outros')" garante que nunca comparamos com None.
+                #}
+                <select id="segmento" name="segmento">
+                    {% set seg_atual = posicao.segmento or 'Outros' %}
+                    {% for opcao in ['Logística', 'Shoppings', 'Lajes Corporativas',
+                                     'Papel / CRI', 'Residencial', 'Hotelaria',
+                                     'Fundo de Fundos', 'Industrial', 'Multimercado', 'Outros'] %}
+                    <option value="{{ opcao }}" {{ 'selected' if opcao == seg_atual }}>
+                        {{ opcao }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+
+        <div style="display: flex; gap: 1rem; margin-top: 1rem;">
+            <button type="submit" class="btn">Salvar Alterações</button>
+            {#
+                CONCEITO — link de cancelar
+                Não fazemos nada no banco, só redirecionamos de volta.
+                É um <a> comum, não um botão de submit.
+            #}
+            <a href="{{ url_for('main.posicoes') }}" class="btn" style="background: #6b7280;">Cancelar</a>
+        </div>
+    </form>
+</div>
+{% endblock %}

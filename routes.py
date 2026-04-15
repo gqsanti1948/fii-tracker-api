@@ -14,7 +14,7 @@ CONCEITO IMPORTANTE:
 
 from flask import Blueprint, render_template, request, redirect, url_for, flash
 from models import db, Posicao, Provento
-from services import calcular_resumo_carteira
+from services import calcular_resumo_carteira, buscar_cotacao
 from datetime import date
 
 # Blueprint = um "módulo" de rotas. Permite organizar rotas em arquivos separados.
@@ -49,7 +49,6 @@ def posicoes():
         quantidade = int(request.form["quantidade"])
         preco = float(request.form["preco_unitario"])
         data_str = request.form.get("data_compra", "")
-        origem = request.form.get("origem", "aporte")
 
         # Converte a data (o formulário manda como "2026-04-15")
         if data_str:
@@ -57,13 +56,18 @@ def posicoes():
         else:
             data_compra = date.today()
 
+        # Busca cotação para inferir o segmento automaticamente.
+        # Se a API falhar, segmento fica None — o usuário pode preencher depois.
+        cotacao = buscar_cotacao(ticker)
+        segmento = cotacao["segmento"] if cotacao else None
+
         # Cria o objeto e salva no banco
         nova_posicao = Posicao(
             ticker=ticker,
             quantidade=quantidade,
             preco_unitario=preco,
             data_compra=data_compra,
-            origem=origem,
+            segmento=segmento,
         )
         db.session.add(nova_posicao)
         db.session.commit()
@@ -91,6 +95,46 @@ def deletar_posicao(id):
     return redirect(url_for("main.posicoes"))
 
 
+@bp.route("/posicoes/editar/<int:id>", methods=["GET", "POST"])
+def editar_posicao(id):
+    """
+    Edita uma posição existente.
+
+    CONCEITO — Por que GET e POST aqui?
+    - GET:  o usuário clicou em "Editar". Precisamos CARREGAR os dados atuais
+            e exibir o formulário já preenchido.
+    - POST: o usuário clicou em "Salvar". Precisamos ATUALIZAR o banco com
+            os novos valores e redirecionar.
+
+    CONCEITO — get_or_404(id)
+    Tenta buscar a linha com esse id. Se não existir, retorna automaticamente
+    um erro 404 (Não encontrado) — sem precisar checar manualmente.
+    """
+    posicao = Posicao.query.get_or_404(id)
+
+    if request.method == "POST":
+        # Sobrescreve os atributos do objeto com os novos valores do formulário.
+        # O SQLAlchemy detecta que o objeto mudou e ao fazer commit ele executa
+        # um UPDATE (não um INSERT), porque o objeto já existe no banco.
+        posicao.ticker = request.form["ticker"].upper().strip()
+        posicao.quantidade = int(request.form["quantidade"])
+        posicao.preco_unitario = float(request.form["preco_unitario"])
+        posicao.segmento = request.form.get("segmento", "").strip() or None
+
+        data_str = request.form.get("data_compra", "")
+        if data_str:
+            posicao.data_compra = date.fromisoformat(data_str)
+
+        db.session.commit()  # Aqui o SQLAlchemy gera: UPDATE posicoes SET ... WHERE id = ?
+
+        flash(f"Posição {posicao.ticker} atualizada com sucesso.", "success")
+        return redirect(url_for("main.posicoes"))
+
+    # GET — apenas renderiza o template passando o objeto posicao.
+    # O template vai usar os valores do objeto para preencher os campos.
+    return render_template("editar_posicao.html", posicao=posicao)
+
+
 @bp.route("/proventos", methods=["GET", "POST"])
 def proventos():
     """
@@ -98,7 +142,6 @@ def proventos():
     """
     if request.method == "POST":
         ticker = request.form["ticker"].upper().strip()
-        valor_por_cota = float(request.form["valor_por_cota"])
         valor_total = float(request.form["valor_total"])
         data_str = request.form.get("data_pagamento", "")
 
@@ -109,7 +152,6 @@ def proventos():
 
         novo_provento = Provento(
             ticker=ticker,
-            valor_por_cota=valor_por_cota,
             valor_total=valor_total,
             data_pagamento=data_pagamento,
         )

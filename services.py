@@ -14,29 +14,66 @@ import requests
 from models import db, Posicao, Provento
 from sqlalchemy import func
 
+BRAPI_TOKEN = "dcdMUi2s2j4rJcEEhY8qBc"
+
+# Cada entrada é (palavras_chave, nome_do_segmento).
+# A primeira regra que encontrar alguma palavra no longName do FII vence.
+# As palavras são verificadas em minúsculo para ignorar maiúsculas/minúsculas.
+_REGRAS_SEGMENTO = [
+    (["logistic", "logística", "logistico"],                        "Logística"),
+    (["shopping", "mall", "varejo"],                                "Shoppings"),
+    (["lajes", "corporat", "corporate", "office"],                  "Lajes Corporativas"),
+    (["receb", "rendimento", "credito", "crédito", "cri", "papel"], "Papel / CRI"),
+    (["residencial", "habitacional", "resi"],                       "Residencial"),
+    (["hotel", "hotelaria"],                                        "Hotelaria"),
+    (["fundo de fundos", "fof"],                                    "Fundo de Fundos"),
+    (["industrial", "galpao", "galpão"],                            "Industrial"),
+    (["hedge fund", "multiestratégia", "multimercado"],             "Multimercado"),
+]
+
+
+def inferir_segmento(long_name: str) -> str:
+    """
+    Infere o segmento do FII a partir do nome longo retornado pela brapi.
+
+    CONCEITO — por que lower()?
+    Comparar strings em minúsculo evita que "Logistica" e "LOGISTICA"
+    sejam tratadas como coisas diferentes. É uma boa prática sempre que
+    você compara texto que veio de fora (API, usuário, arquivo).
+
+    Retorna "Outros" se nenhuma regra bater — nunca retorna None,
+    porque o gráfico precisa de um valor para atribuir a cor.
+    """
+    nome = long_name.lower()
+    for palavras_chave, segmento in _REGRAS_SEGMENTO:
+        if any(p in nome for p in palavras_chave):
+            return segmento
+    return "Outros"
+
 
 def buscar_cotacao(ticker: str) -> dict | None:
-    """
-    Busca a cotação em tempo real de um FII usando a API da brapi.dev.
-    
-    A brapi.dev é uma API gratuita (com limite) que retorna cotações da B3.
-    Endpoint: https://brapi.dev/api/quote/{TICKER}
-    
-    Retorna:
-        dict com 'preco', 'nome', 'variacao' ou None se falhar
-    """
     try:
         url = f"https://brapi.dev/api/quote/{ticker}"
-        response = requests.get(url, timeout=10)
+        headers = {
+            "Authorization": f"Bearer {BRAPI_TOKEN}"
+        }
+
+        response = requests.get(url, headers=headers, timeout=10)
+        response.raise_for_status()
         data = response.json()
 
         if "results" in data and len(data["results"]) > 0:
             result = data["results"][0]
+            long_name = result.get("longName", ticker)
             return {
                 "preco": result.get("regularMarketPrice", 0),
-                "nome": result.get("longName", ticker),
+                "nome": long_name,
                 "variacao": result.get("regularMarketChangePercent", 0),
+                "segmento": inferir_segmento(long_name),
             }
+
+        print(f"Sem resultados para {ticker}: {data}")
+
     except Exception as e:
         print(f"Erro ao buscar cotação de {ticker}: {e}")
 
@@ -76,10 +113,11 @@ def calcular_resumo_carteira() -> dict:
     posicoes_agrupadas = (
         db.session.query(
             Posicao.ticker,
+            Posicao.segmento,
             func.sum(Posicao.quantidade).label("total_cotas"),
             func.sum(Posicao.quantidade * Posicao.preco_unitario).label("total_investido"),
         )
-        .group_by(Posicao.ticker)
+        .group_by(Posicao.ticker, Posicao.segmento)
         .all()
     )
 
@@ -102,6 +140,7 @@ def calcular_resumo_carteira() -> dict:
             "cotas": total_cotas,
             "preco_medio": round(preco_medio, 2),
             "total_investido": round(total_investido, 2),
+            "segmento": row.segmento or "Outros",
         })
 
     # Busca cotações atuais

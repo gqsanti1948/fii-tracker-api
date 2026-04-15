@@ -1,11 +1,3 @@
-<!--
-posicoes.html — Cadastro e lista de posições.
-
-CONCEITO HTML FORMS:
-- <form method="POST"> envia dados para o servidor
-- O atributo `name` de cada input é o que você acessa em Python via request.form["name"]
-- action="" (vazio) significa "envia para a mesma URL"
--->
 {% extends "base.html" %}
 
 {% block content %}
@@ -19,7 +11,7 @@ CONCEITO HTML FORMS:
             <div class="form-group">
                 <label for="ticker">Ticker</label>
                 <input type="text" id="ticker" name="ticker"
-                       placeholder="Ex: BTLG11" required
+                       placeholder="Ex: ABCD11" required
                        maxlength="10" style="text-transform: uppercase;">
             </div>
             <div class="form-group">
@@ -30,18 +22,11 @@ CONCEITO HTML FORMS:
             <div class="form-group">
                 <label for="preco_unitario">Preço Unitário (R$)</label>
                 <input type="number" id="preco_unitario" name="preco_unitario"
-                       placeholder="Ex: 103.87" required step="0.01" min="0">
+                       placeholder="Ex: 100.00" required step="0.01" min="0">
             </div>
             <div class="form-group">
                 <label for="data_compra">Data da Compra</label>
                 <input type="date" id="data_compra" name="data_compra">
-            </div>
-            <div class="form-group">
-                <label for="origem">Origem</label>
-                <select id="origem" name="origem">
-                    <option value="aporte">Aporte</option>
-                    <option value="reinvestimento">Reinvestimento (proventos)</option>
-                </select>
             </div>
         </div>
         <button type="submit" class="btn">Adicionar</button>
@@ -61,7 +46,6 @@ CONCEITO HTML FORMS:
                 <th>Qtd</th>
                 <th>Preço Unit.</th>
                 <th>Total</th>
-                <th>Origem</th>
                 <th></th>
             </tr>
         </thead>
@@ -73,12 +57,13 @@ CONCEITO HTML FORMS:
                 <td>{{ pos.quantidade }}</td>
                 <td>R$ {{ "%.2f"|format(pos.preco_unitario) }}</td>
                 <td>R$ {{ "%.2f"|format(pos.quantidade * pos.preco_unitario) }}</td>
-                <td>
-                    <span class="badge {{ 'badge-green' if pos.origem == 'aporte' else 'badge-purple' }}">
-                        {{ pos.origem }}
-                    </span>
-                </td>
-                <td>
+                <td style="display: flex; gap: 0.5rem;">
+                    <!--
+                        url_for('main.editar_posicao', id=pos.id) gera a URL correta
+                        para cada linha, ex: /posicoes/editar/3
+                        O pos.id muda a cada iteração do loop for acima.
+                    -->
+                    <a href="{{ url_for('main.editar_posicao', id=pos.id) }}" class="btn-edit">✎</a>
                     <a href="/posicoes/deletar/{{ pos.id }}" class="btn-delete"
                        onclick="return confirm('Deletar posição {{ pos.ticker }}?')">✕</a>
                 </td>

@@ -1,20 +1,3 @@
-<!--
-dashboard.html — Página principal com resumo da carteira.
-
-Esta página recebe `resumo` do routes.py, que contém:
-- resumo.posicoes (lista de FIIs com dados)
-- resumo.total_investido
-- resumo.patrimonio_atual
-- resumo.lucro_total
-- resumo.proventos_total
-- etc.
-
-CONCEITO JINJA2:
-- {{ variavel }} = imprime o valor
-- {{ "%.2f"|format(numero) }} = formata com 2 casas decimais
-- {% for item in lista %} = loop
-- {% if condicao %} = condicional
--->
 {% extends "base.html" %}
 
 {% block content %}
@@ -42,6 +25,98 @@ CONCEITO JINJA2:
         <span class="card-value accent">R$ {{ "%.2f"|format(resumo.proventos_total) }}</span>
     </div>
 </div>
+
+{% if resumo.posicoes %}
+<h2>Diversificação</h2>
+<div class="chart-container">
+    <canvas id="graficoDiversificacao"></canvas>
+</div>
+
+<script>
+    const labels    = {{ resumo.posicoes | map(attribute='ticker')   | list | tojson }};
+    const valores   = {{ resumo.posicoes | map(attribute='valor_atual') | list | tojson }};
+    const segmentos = {{ resumo.posicoes | map(attribute='segmento') | list | tojson }};
+
+    /*
+        Cor base por segmento. FIIs do mesmo segmento recebem a mesma cor base;
+        variamos a opacidade (alpha) para distingui-los entre si.
+        Cores escolhidas para harmonizar com o tema escuro do app.
+    */
+    const corPorSegmento = {
+        'Logística':          '16, 185, 129',   /* verde  -- var(--accent)  */
+        'Shoppings':          '245, 158, 11',   /* âmbar  -- var(--warning) */
+        'Lajes Corporativas': '59, 130, 246',   /* azul   -- var(--blue)    */
+        'Papel / CRI':        '139, 92, 246',   /* roxo   -- var(--purple)  */
+        'Residencial':        '236, 72, 153',   /* rosa                     */
+        'Hotelaria':          '251, 146, 60',   /* laranja                  */
+        'Fundo de Fundos':    '20, 184, 166',   /* teal                     */
+        'Industrial':         '132, 204, 22',   /* lima                     */
+        'Multimercado':       '234, 88, 12',    /* laranja escuro            */
+        'Outros':             '156, 163, 175',  /* cinza  -- var(--text-dim)*/
+    };
+
+    /*
+        Para cada posição, calculamos qual a opacidade dentro do segmento.
+        Ex: 2 FIIs de Logística → opacidades 1.0 e 0.6
+            3 FIIs de Shoppings → opacidades 1.0, 0.75 e 0.55
+        Assim ficam distinguíveis mas claramente "da mesma família".
+    */
+    const contagemPorSegmento = {};
+    const indicePorSegmento   = {};
+    segmentos.forEach(seg => { contagemPorSegmento[seg] = (contagemPorSegmento[seg] || 0) + 1; });
+
+    const cores = segmentos.map(seg => {
+        const rgb   = corPorSegmento[seg] || corPorSegmento['Outros'];
+        const total_seg = contagemPorSegmento[seg];
+        const idx   = indicePorSegmento[seg] = (indicePorSegmento[seg] || 0);
+        indicePorSegmento[seg]++;
+        /* Opacidade vai de 1.0 (primeiro) até 0.5 (último), espaçada uniformemente */
+        const alpha = total_seg === 1 ? 1.0 : 1.0 - (idx / total_seg) * 0.5;
+        return `rgba(${rgb}, ${alpha.toFixed(2)})`;
+    });
+
+    const total = valores.reduce((a, b) => a + b, 0);
+
+    new Chart(document.getElementById('graficoDiversificacao'), {
+        type: 'pie',
+        data: {
+            labels: labels,
+            datasets: [{
+                data: valores,
+                backgroundColor: cores,
+                borderColor: '#0f1117',
+                borderWidth: 2,
+            }]
+        },
+        options: {
+            responsive: true,
+            plugins: {
+                legend: {
+                    position: 'right',
+                    labels: { color: '#e4e4e7', padding: 16, font: { size: 13 } }
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            const pct = ((context.parsed / total) * 100).toFixed(1);
+                            return ` ${context.label}: R$ ${context.parsed.toFixed(2)} (${pct}%)`;
+                        }
+                    }
+                },
+                datalabels: {
+                    color: '#ffffff',
+                    font: { weight: 'bold', size: 13 },
+                    formatter: function(value) {
+                        const pct = (value / total * 100);
+                        return pct < 5 ? '' : pct.toFixed(1) + '%';
+                    }
+                }
+            }
+        },
+        plugins: [ChartDataLabels]
+    });
+</script>
+{% endif %}
 
 <!-- Tabela de posições -->
 <h2>Posições</h2>

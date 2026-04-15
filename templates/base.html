@@ -1,11 +1,3 @@
-<!--
-base.html — Layout base que TODAS as páginas herdam.
-
-CONCEITO IMPORTANTE (Jinja2 Template Inheritance):
-- {% block content %}{% endblock %} = um "espaço em branco" que cada página preenche
-- As outras páginas usam {% extends "base.html" %} para herdar este layout
-- Isso evita repetir o header/menu/footer em cada página
--->
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
@@ -13,6 +5,8 @@ CONCEITO IMPORTANTE (Jinja2 Template Inheritance):
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>FII Tracker — {{ title if title else "Dashboard" }}</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2"></script>
 </head>
 <body>
     <nav class="navbar">

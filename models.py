@@ -35,7 +35,9 @@ class Posicao(db.Model):
     quantidade = db.Column(db.Integer, nullable=False)        # Ex: 5
     preco_unitario = db.Column(db.Float, nullable=False)      # Ex: 103.87
     data_compra = db.Column(db.Date, nullable=False, default=date.today)
-    origem = db.Column(db.String(20), default="aporte")       # "aporte" ou "reinvestimento"
+    # nullable=True porque posições já cadastradas não têm esse dado ainda.
+    # O segmento será inferido automaticamente pela brapi ao cadastrar.
+    segmento = db.Column(db.String(50), nullable=True)
 
     def __repr__(self):
         return f"<Posicao {self.ticker} | {self.quantidade}x R${self.preco_unitario:.2f}>"
@@ -55,8 +57,7 @@ class Provento(db.Model):
 
     id = db.Column(db.Integer, primary_key=True)
     ticker = db.Column(db.String(10), nullable=False)         # Ex: "BTLG11"
-    valor_por_cota = db.Column(db.Float, nullable=False)      # Ex: 0.80
-    valor_total = db.Column(db.Float, nullable=False)          # Ex: 4.00 (0.80 * 5 cotas)
+    valor_total = db.Column(db.Float, nullable=False)         
     data_pagamento = db.Column(db.Date, nullable=False, default=date.today)
 
     def __repr__(self):
