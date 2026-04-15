@@ -235,6 +235,32 @@ small { font-size: 11px; }
     border-color: var(--accent);
 }
 
+.range-selector {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem;
+    margin-bottom: 0.75rem;
+}
+
+.range-btn {
+    padding: 0.2rem 0.6rem;
+    border-radius: 4px;
+    border: 1px solid transparent;
+    background: transparent;
+    color: var(--text-muted);
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: color 0.15s, background 0.15s;
+}
+
+.range-btn:hover { color: var(--text); }
+
+.range-btn.active {
+    background: var(--accent-dim);
+    color: var(--accent);
+}
+
 .chart-container {
     max-width: 480px;
     margin: 0 0 2rem;

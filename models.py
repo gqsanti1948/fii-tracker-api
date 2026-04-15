@@ -62,3 +62,19 @@ class Provento(db.Model):
 
     def __repr__(self):
         return f"<Provento {self.ticker} | R${self.valor_total:.2f} em {self.data_pagamento}>"
+
+
+class HistoricoPatrimonio(db.Model):
+    """
+    Snapshot do patrimônio com data e hora completos.
+    Permite múltiplos registros por dia (intraday) para o gráfico 1D.
+    O throttle de 15 minutos é aplicado em Python, não no banco.
+    """
+    __tablename__ = "historico_patrimonio"
+
+    id        = db.Column(db.Integer, primary_key=True)
+    data_hora = db.Column(db.DateTime, nullable=False)
+    valor     = db.Column(db.Float, nullable=False)
+
+    def __repr__(self):
+        return f"<HistoricoPatrimonio {self.data_hora} | R${self.valor:.2f}>"

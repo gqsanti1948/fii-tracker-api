@@ -11,7 +11,8 @@ CONCEITO IMPORTANTE:
 """
 
 import requests
-from models import db, Posicao, Provento
+from datetime import date, datetime, timedelta
+from models import db, Posicao, Provento, HistoricoPatrimonio
 from sqlalchemy import func
 
 BRAPI_TOKEN = "dcdMUi2s2j4rJcEEhY8qBc"
@@ -201,3 +202,44 @@ def calcular_resumo_carteira() -> dict:
             (proventos_total / total_investido_carteira) * 100, 2
         ) if total_investido_carteira > 0 else 0,
     }
+
+
+def registrar_snapshot_patrimonio():
+    """
+    Salva o patrimônio atual com timestamp completo.
+    Throttle de 15 minutos: ignora se o último snapshot foi há menos de 15 min.
+    """
+    agora = datetime.now()
+    ultimo = (
+        HistoricoPatrimonio.query
+        .order_by(HistoricoPatrimonio.data_hora.desc())
+        .first()
+    )
+    if ultimo and (agora - ultimo.data_hora) < timedelta(minutes=15):
+        return
+
+    resumo = calcular_resumo_carteira()
+    if resumo["patrimonio_atual"] <= 0:
+        return
+
+    snapshot = HistoricoPatrimonio(data_hora=agora, valor=resumo["patrimonio_atual"])
+    db.session.add(snapshot)
+    db.session.commit()
+    print(f"Snapshot registrado: R$ {resumo['patrimonio_atual']:.2f} às {agora.strftime('%H:%M')}")
+
+
+def buscar_historico_patrimonio():
+    """
+    Retorna lista de snapshots ordenados por data_hora.
+    Cada item tem 'data_hora' (string "DD/MM/YYYY HH:MM") e 'valor'.
+    O frontend separa 1D (eixo HH:MM) dos demais períodos (agrupados por dia).
+    """
+    registros = (
+        HistoricoPatrimonio.query
+        .order_by(HistoricoPatrimonio.data_hora)
+        .all()
+    )
+    return [
+        {"data_hora": r.data_hora.strftime("%d/%m/%Y %H:%M"), "valor": r.valor}
+        for r in registros
+    ]

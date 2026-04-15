@@ -14,7 +14,7 @@ CONCEITO IMPORTANTE:
 
 from flask import Blueprint, render_template, request, redirect, url_for, flash
 from models import db, Posicao, Provento
-from services import calcular_resumo_carteira, buscar_cotacao
+from services import calcular_resumo_carteira, buscar_cotacao, buscar_historico_patrimonio
 from datetime import date
 
 # Blueprint = um "módulo" de rotas. Permite organizar rotas em arquivos separados.
@@ -32,7 +32,8 @@ def dashboard():
     3. O Jinja2 renderiza o HTML com os dados
     """
     resumo = calcular_resumo_carteira()
-    return render_template("dashboard.html", resumo=resumo)
+    historico = buscar_historico_patrimonio()
+    return render_template("dashboard.html", resumo=resumo, historico=historico)
 
 
 @bp.route("/posicoes", methods=["GET", "POST"])

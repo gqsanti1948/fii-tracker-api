@@ -18,7 +18,7 @@ CONCEITO IMPORTANTE:
 from flask import Flask
 from models import db, Posicao
 from routes import bp
-from services import buscar_cotacao
+from services import buscar_cotacao, registrar_snapshot_patrimonio
 
 def create_app():
     """
@@ -47,6 +47,7 @@ def create_app():
         db.create_all()
         _migrar_banco(db)
         _preencher_segmentos_faltantes()
+        registrar_snapshot_patrimonio()
 
     return app
 
@@ -108,7 +109,7 @@ def _migrar_banco(db):
     Para projetos pequenos, essa abordagem manual é suficiente.
     """
     with db.engine.connect() as conn:
-        # Busca as colunas atuais da tabela posicoes
+        # Migração 1: coluna segmento em posicoes
         colunas = [row[1] for row in conn.execute(
             db.text("PRAGMA table_info(posicoes)")
         )]
@@ -118,6 +119,30 @@ def _migrar_banco(db):
             ))
             conn.commit()
             print("Migração aplicada: coluna 'segmento' adicionada.")
+
+        # Migração 2: historico_patrimonio de Date(unique) para DateTime
+        # SQLite não suporta DROP CONSTRAINT, então recriamos a tabela.
+        hist_cols = [row[1] for row in conn.execute(
+            db.text("PRAGMA table_info(historico_patrimonio)")
+        )]
+        if "data" in hist_cols and "data_hora" not in hist_cols:
+            conn.execute(db.text("""
+                CREATE TABLE historico_patrimonio_new (
+                    id        INTEGER PRIMARY KEY AUTOINCREMENT,
+                    data_hora DATETIME NOT NULL,
+                    valor     FLOAT NOT NULL
+                )
+            """))
+            conn.execute(db.text("""
+                INSERT INTO historico_patrimonio_new (data_hora, valor)
+                SELECT data || ' 10:00:00', valor FROM historico_patrimonio
+            """))
+            conn.execute(db.text("DROP TABLE historico_patrimonio"))
+            conn.execute(db.text(
+                "ALTER TABLE historico_patrimonio_new RENAME TO historico_patrimonio"
+            ))
+            conn.commit()
+            print("Migração aplicada: historico_patrimonio atualizado para datetime.")
 
 
 # Quando você roda `python app.py`, esse bloco executa
