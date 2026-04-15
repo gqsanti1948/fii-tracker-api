@@ -1,0 +1,93 @@
+<!--
+posicoes.html — Cadastro e lista de posições.
+
+CONCEITO HTML FORMS:
+- <form method="POST"> envia dados para o servidor
+- O atributo `name` de cada input é o que você acessa em Python via request.form["name"]
+- action="" (vazio) significa "envia para a mesma URL"
+-->
+{% extends "base.html" %}
+
+{% block content %}
+<h1>Posições</h1>
+
+<!-- Formulário de nova posição -->
+<div class="form-card">
+    <h3>Adicionar Posição</h3>
+    <form method="POST" action="">
+        <div class="form-grid">
+            <div class="form-group">
+                <label for="ticker">Ticker</label>
+                <input type="text" id="ticker" name="ticker"
+                       placeholder="Ex: BTLG11" required
+                       maxlength="10" style="text-transform: uppercase;">
+            </div>
+            <div class="form-group">
+                <label for="quantidade">Quantidade</label>
+                <input type="number" id="quantidade" name="quantidade"
+                       placeholder="Ex: 5" required min="1">
+            </div>
+            <div class="form-group">
+                <label for="preco_unitario">Preço Unitário (R$)</label>
+                <input type="number" id="preco_unitario" name="preco_unitario"
+                       placeholder="Ex: 103.87" required step="0.01" min="0">
+            </div>
+            <div class="form-group">
+                <label for="data_compra">Data da Compra</label>
+                <input type="date" id="data_compra" name="data_compra">
+            </div>
+            <div class="form-group">
+                <label for="origem">Origem</label>
+                <select id="origem" name="origem">
+                    <option value="aporte">Aporte</option>
+                    <option value="reinvestimento">Reinvestimento (proventos)</option>
+                </select>
+            </div>
+        </div>
+        <button type="submit" class="btn">Adicionar</button>
+    </form>
+</div>
+
+<!-- Lista de posições -->
+<h2>Histórico de Compras</h2>
+
+{% if posicoes %}
+<div class="table-wrapper">
+    <table>
+        <thead>
+            <tr>
+                <th>Data</th>
+                <th>Ticker</th>
+                <th>Qtd</th>
+                <th>Preço Unit.</th>
+                <th>Total</th>
+                <th>Origem</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for pos in posicoes %}
+            <tr>
+                <td>{{ pos.data_compra.strftime("%d/%m/%Y") }}</td>
+                <td><strong>{{ pos.ticker }}</strong></td>
+                <td>{{ pos.quantidade }}</td>
+                <td>R$ {{ "%.2f"|format(pos.preco_unitario) }}</td>
+                <td>R$ {{ "%.2f"|format(pos.quantidade * pos.preco_unitario) }}</td>
+                <td>
+                    <span class="badge {{ 'badge-green' if pos.origem == 'aporte' else 'badge-purple' }}">
+                        {{ pos.origem }}
+                    </span>
+                </td>
+                <td>
+                    <a href="/posicoes/deletar/{{ pos.id }}" class="btn-delete"
+                       onclick="return confirm('Deletar posição {{ pos.ticker }}?')">✕</a>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% else %}
+<p class="empty-state">Nenhuma posição cadastrada ainda.</p>
+{% endif %}
+{% endblock %}

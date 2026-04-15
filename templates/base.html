@@ -1,0 +1,45 @@
+<!--
+base.html — Layout base que TODAS as páginas herdam.
+
+CONCEITO IMPORTANTE (Jinja2 Template Inheritance):
+- {% block content %}{% endblock %} = um "espaço em branco" que cada página preenche
+- As outras páginas usam {% extends "base.html" %} para herdar este layout
+- Isso evita repetir o header/menu/footer em cada página
+-->
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FII Tracker — {{ title if title else "Dashboard" }}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <nav class="navbar">
+        <a href="/" class="logo">📊 FII Tracker</a>
+        <div class="nav-links">
+            <a href="/">Dashboard</a>
+            <a href="/posicoes">Posições</a>
+            <a href="/proventos">Proventos</a>
+        </div>
+    </nav>
+
+    <main class="container">
+        <!-- Mensagens flash (feedback ao usuário) -->
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="alert alert-{{ category }}">{{ message }}</div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        <!-- Aqui entra o conteúdo de cada página -->
+        {% block content %}{% endblock %}
+    </main>
+
+    <footer class="footer">
+        <p>FII Tracker v0.1 — Dados via <a href="https://brapi.dev" target="_blank">brapi.dev</a></p>
+    </footer>
+</body>
+</html>

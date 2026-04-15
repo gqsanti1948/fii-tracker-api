@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+
+{% block content %}
+<h1>Proventos</h1>
+
+<!-- Formulário -->
+<div class="form-card">
+    <h3>Registrar Provento</h3>
+    <form method="POST" action="">
+        <div class="form-grid">
+            <div class="form-group">
+                <label for="ticker">Ticker</label>
+                <input type="text" id="ticker" name="ticker"
+                       placeholder="Ex: BTLG11" required
+                       maxlength="10" style="text-transform: uppercase;">
+            </div>
+            <div class="form-group">
+                <label for="valor_por_cota">Valor por Cota (R$)</label>
+                <input type="number" id="valor_por_cota" name="valor_por_cota"
+                       placeholder="Ex: 0.80" required step="0.01" min="0">
+            </div>
+            <div class="form-group">
+                <label for="valor_total">Valor Total Recebido (R$)</label>
+                <input type="number" id="valor_total" name="valor_total"
+                       placeholder="Ex: 4.00" required step="0.01" min="0">
+            </div>
+            <div class="form-group">
+                <label for="data_pagamento">Data do Pagamento</label>
+                <input type="date" id="data_pagamento" name="data_pagamento">
+            </div>
+        </div>
+        <button type="submit" class="btn">Registrar</button>
+    </form>
+</div>
+
+<!-- Lista -->
+<h2>Histórico de Proventos</h2>
+
+{% if proventos %}
+<div class="table-wrapper">
+    <table>
+        <thead>
+            <tr>
+                <th>Data</th>
+                <th>Ticker</th>
+                <th>Valor/Cota</th>
+                <th>Total Recebido</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for prov in proventos %}
+            <tr>
+                <td>{{ prov.data_pagamento.strftime("%d/%m/%Y") }}</td>
+                <td><strong>{{ prov.ticker }}</strong></td>
+                <td>R$ {{ "%.2f"|format(prov.valor_por_cota) }}</td>
+                <td class="accent">R$ {{ "%.2f"|format(prov.valor_total) }}</td>
+                <td>
+                    <a href="/proventos/deletar/{{ prov.id }}" class="btn-delete"
+                       onclick="return confirm('Deletar provento?')">✕</a>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<!-- Resumo -->
+<div class="summary-bar">
+    Total recebido: <strong>R$ {{ "%.2f"|format(proventos | map(attribute='valor_total') | sum) }}</strong>
+</div>
+{% else %}
+<p class="empty-state">Nenhum provento registrado ainda.</p>
+{% endif %}
+{% endblock %}

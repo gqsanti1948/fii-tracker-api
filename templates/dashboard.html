@@ -1,0 +1,94 @@
+<!--
+dashboard.html — Página principal com resumo da carteira.
+
+Esta página recebe `resumo` do routes.py, que contém:
+- resumo.posicoes (lista de FIIs com dados)
+- resumo.total_investido
+- resumo.patrimonio_atual
+- resumo.lucro_total
+- resumo.proventos_total
+- etc.
+
+CONCEITO JINJA2:
+- {{ variavel }} = imprime o valor
+- {{ "%.2f"|format(numero) }} = formata com 2 casas decimais
+- {% for item in lista %} = loop
+- {% if condicao %} = condicional
+-->
+{% extends "base.html" %}
+
+{% block content %}
+<h1>Dashboard</h1>
+
+<!-- Cards de resumo -->
+<div class="cards-grid">
+    <div class="card">
+        <span class="card-label">Total Investido</span>
+        <span class="card-value">R$ {{ "%.2f"|format(resumo.total_investido) }}</span>
+    </div>
+    <div class="card">
+        <span class="card-label">Patrimônio Atual</span>
+        <span class="card-value">R$ {{ "%.2f"|format(resumo.patrimonio_atual) }}</span>
+    </div>
+    <div class="card {{ 'positive' if resumo.lucro_total >= 0 else 'negative' }}">
+        <span class="card-label">Lucro / Prejuízo</span>
+        <span class="card-value">
+            R$ {{ "%.2f"|format(resumo.lucro_total) }}
+            ({{ "%.2f"|format(resumo.lucro_total_pct) }}%)
+        </span>
+    </div>
+    <div class="card">
+        <span class="card-label">Proventos Recebidos</span>
+        <span class="card-value accent">R$ {{ "%.2f"|format(resumo.proventos_total) }}</span>
+    </div>
+</div>
+
+<!-- Tabela de posições -->
+<h2>Posições</h2>
+
+{% if resumo.posicoes %}
+<div class="table-wrapper">
+    <table>
+        <thead>
+            <tr>
+                <th>Ticker</th>
+                <th>Cotas</th>
+                <th>Preço Médio</th>
+                <th>Preço Atual</th>
+                <th>Investido</th>
+                <th>Valor Atual</th>
+                <th>L/P</th>
+                <th>Proventos</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for pos in resumo.posicoes %}
+            <tr>
+                <td><strong>{{ pos.ticker }}</strong></td>
+                <td>{{ pos.cotas }}</td>
+                <td>R$ {{ "%.2f"|format(pos.preco_medio) }}</td>
+                <td>
+                    R$ {{ "%.2f"|format(pos.preco_atual) }}
+                    <small class="{{ 'positive' if pos.variacao >= 0 else 'negative' }}">
+                        ({{ "%.2f"|format(pos.variacao) }}%)
+                    </small>
+                </td>
+                <td>R$ {{ "%.2f"|format(pos.total_investido) }}</td>
+                <td>R$ {{ "%.2f"|format(pos.valor_atual) }}</td>
+                <td class="{{ 'positive' if pos.lucro_prejuizo >= 0 else 'negative' }}">
+                    R$ {{ "%.2f"|format(pos.lucro_prejuizo) }}
+                    <small>({{ "%.2f"|format(pos.lucro_pct) }}%)</small>
+                </td>
+                <td>R$ {{ "%.2f"|format(pos.proventos_recebidos) }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% else %}
+<p class="empty-state">
+    Nenhuma posição cadastrada.
+    <a href="/posicoes">Adicionar primeira posição →</a>
+</p>
+{% endif %}
+{% endblock %}
