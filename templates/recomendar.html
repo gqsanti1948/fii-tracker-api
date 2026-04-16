@@ -1,0 +1,106 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Recomendação de Aporte</h1>
+
+<!-- Formulário de entrada -->
+<form method="POST" style="display:flex; gap:1rem; align-items:flex-end; margin-bottom:2rem;">
+  <div class="form-group" style="margin:0;">
+    <label for="valor">Valor disponível (R$)</label>
+    <input type="text" id="valor" name="valor" value="{{ valor_str }}"
+           placeholder="Ex: 256,23" required style="width:180px;">
+  </div>
+  <button type="submit" class="btn">Recomendar</button>
+  {% if cenario %}
+  <span style="color:var(--text-muted); font-size:13px; align-self:center;">
+    Cenário atual: <strong>{{ cenario.cenario.title() }}</strong>
+    — Selic {{ cenario.selic_atual }}%
+    {% if cenario.modo_acumulacao %}<span class="badge badge-red">Modo acumulação</span>{% endif %}
+  </span>
+  {% endif %}
+</form>
+
+{% if resultado %}
+
+  {% if resultado.erro %}
+    <p class="empty-state">{{ resultado.erro }}</p>
+  {% else %}
+
+  <!-- Alertas -->
+  {% if resultado.alertas %}
+  <div style="margin-bottom:1.5rem;">
+    {% for alerta in resultado.alertas %}
+    <div class="alert alert-{{ 'warning' if alerta.tipo == 'urgente' else ('success' if alerta.tipo == 'oportunidade' else 'info') }}">
+      {% if alerta.tipo == 'urgente' %}⚠️{% elif alerta.tipo == 'oportunidade' %}🎯{% else %}ℹ️{% endif %}
+      {{ alerta.msg }}
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  <!-- Card de resumo -->
+  <div class="rec-header">
+    <span>Valor disponível: <strong>R$ {{ "%.2f"|format(resultado.valor_disponivel) }}</strong></span>
+    <span>Total investido: <strong>R$ {{ "%.2f"|format(resultado.total_investido) }}</strong></span>
+    <span>Caixa restante: <strong>R$ {{ "%.2f"|format(resultado.valor_restante) }}</strong></span>
+    <span>Cenário: <strong>{{ resultado.cenario.title() }}</strong> — Selic {{ resultado.selic }}%</span>
+  </div>
+
+  <!-- Recomendações -->
+  {% if resultado.recomendacoes %}
+  <div style="display:flex; flex-direction:column; gap:1rem; margin-bottom:2rem;">
+    {% for rec in resultado.recomendacoes %}
+    <div class="rec-card rec-{{ rec.tipo }}">
+      <div class="rec-tipo">
+        {% if rec.tipo == 'principal' %}📍 Principal
+        {% elif rec.tipo == 'secundaria' %}📍 Secundária
+        {% elif rec.tipo == 'sobra' %}💰 Com a sobra
+        {% elif rec.tipo == 'acumulacao' %}🏦 Acumulação
+        {% endif %}
+      </div>
+      <div class="rec-body">
+        <span class="rec-ticker">{{ rec.cotas }}× <strong>{{ rec.ticker }}</strong></span>
+        <span class="rec-preco">@ R$ {{ "%.2f"|format(rec.preco) }}</span>
+        <span class="rec-custo">= R$ {{ "%.2f"|format(rec.custo) }}</span>
+      </div>
+      <div class="rec-motivo">{{ rec.motivo }}</div>
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <p class="empty-state">Nenhum fundo se encaixa no orçamento disponível.</p>
+  {% endif %}
+
+  <!-- Tabela de gaps -->
+  <h2>Desvios da Meta</h2>
+  <div class="table-wrapper">
+    <table>
+      <thead>
+        <tr>
+          <th>Ticker</th>
+          <th>Segmento</th>
+          <th>Meta %</th>
+          <th>Atual %</th>
+          <th>Gap</th>
+          <th>Preço atual</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for g in resultado.gaps %}
+        <tr>
+          <td><strong>{{ g.ticker }}</strong></td>
+          <td><span class="badge">{{ g.segmento }}</span></td>
+          <td>{{ g.meta_pct }}%</td>
+          <td>{{ g.peso_real }}%</td>
+          <td class="{{ 'negative' if g.gap > 0 else 'positive' }}">
+            {{ '%+.1f'|format(g.gap) }} p.p.
+          </td>
+          <td>{% if g.preco_atual %}R$ {{ "%.2f"|format(g.preco_atual) }}{% else %}—{% endif %}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  {% endif %} {# fim erro #}
+{% endif %} {# fim resultado #}
+{% endblock %}

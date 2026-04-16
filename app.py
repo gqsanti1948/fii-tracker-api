@@ -16,9 +16,38 @@ CONCEITO IMPORTANTE:
 """
 
 from flask import Flask
-from models import db, Posicao
+from datetime import date
+from models import db, Posicao, MetaFundo, MetaSegmento, MetaCategoria, ConfigCenario, PrecoAlvo
 from routes import bp
 from services import buscar_cotacao, registrar_snapshot_patrimonio
+from apscheduler.schedulers.background import BackgroundScheduler
+from apscheduler.triggers.cron import CronTrigger
+
+def _iniciar_scheduler(app):
+    """
+    Agenda um snapshot automático às 16:50 hora de Brasília de segunda a sexta,
+    garantindo ao menos um ponto de dados por dia útil mesmo que o usuário
+    não acesse o app.
+
+    Brasília é UTC-3 fixo (sem horário de verão desde 2019).
+    16:50 BRT → 16:50 + 3h = 19:50 UTC.
+    """
+    scheduler = BackgroundScheduler()
+
+    def _job():
+        with app.app_context():
+            registrar_snapshot_patrimonio()
+
+    # 16:50 BRT = 19:50 UTC (UTC-3, sem DST)
+    scheduler.add_job(
+        func=_job,
+        trigger=CronTrigger(day_of_week="mon-fri", hour=19, minute=50, timezone="UTC"),
+        id="snapshot_fechamento",
+        replace_existing=True,
+    )
+    scheduler.start()
+    return scheduler
+
 
 def create_app():
     """
@@ -47,7 +76,10 @@ def create_app():
         db.create_all()
         _migrar_banco(db)
         _preencher_segmentos_faltantes()
+        _seed_metas_iniciais()
         registrar_snapshot_patrimonio()
+
+    _iniciar_scheduler(app)
 
     return app
 
@@ -143,6 +175,71 @@ def _migrar_banco(db):
             ))
             conn.commit()
             print("Migração aplicada: historico_patrimonio atualizado para datetime.")
+
+
+def _seed_metas_iniciais():
+    """
+    Popula as tabelas de meta com os dados iniciais da carteira
+    apenas se ainda estiverem vazias — nunca sobrescreve edições do usuário.
+    """
+    if MetaFundo.query.first():
+        return   # já foi semeado
+
+    # ── Camada 0: meta por fundo ────────────────────────────────────
+    fundos = [
+        ("BTHF11", "Multimercado",       "multi",   20.0),
+        ("RCRB11", "Lajes Corporativas", "tijolo",  19.0),
+        ("KNIP11", "Papel / CRI",        "papel",   14.0),
+        ("VILG11", "Logística",          "tijolo",  12.0),
+        ("XPML11", "Shoppings",          "tijolo",   9.0),
+        ("PMLL11", "Shoppings",          "tijolo",   9.0),
+        ("KNCR11", "Papel / CRI",        "papel",    9.0),
+        ("BTLG11", "Logística",          "tijolo",   8.0),
+    ]
+    for ticker, segmento, categoria, meta_pct in fundos:
+        db.session.add(MetaFundo(
+            ticker=ticker, segmento=segmento,
+            categoria=categoria, meta_pct=meta_pct,
+        ))
+
+    # ── Camada 1: guardrails por segmento ───────────────────────────
+    segmentos = [
+        ("Logística",          15.0, 28.0),
+        ("Multimercado",       15.0, 25.0),
+        ("Lajes Corporativas", 12.0, 25.0),
+        ("Shoppings",          12.0, 25.0),
+        ("Papel / CRI",        13.0, 35.0),
+    ]
+    for segmento, piso, teto in segmentos:
+        db.session.add(MetaSegmento(segmento=segmento, piso_pct=piso, teto_pct=teto))
+
+    # ── Camada 2: guardrails por categoria ──────────────────────────
+    categorias = [
+        ("tijolo", 45.0, 65.0),
+        ("papel",  18.0, 40.0),
+        ("multi",  15.0, 25.0),
+    ]
+    for categoria, piso, teto in categorias:
+        db.session.add(MetaCategoria(categoria=categoria, piso_pct=piso, teto_pct=teto))
+
+    # ── Cenário inicial ─────────────────────────────────────────────
+    db.session.add(ConfigCenario(
+        id=1, cenario="estavel", selic_atual=14.75,
+        modo_acumulacao=False, atualizado_em=date.today(),
+    ))
+
+    # ── Preços-alvo iniciais ────────────────────────────────────────
+    precos = [
+        ("XPML11", 105.0),
+        ("PMLL11", 105.0),
+        ("RCRB11", 130.0),
+        ("VILG11",  95.0),
+    ]
+    for ticker, alvo in precos:
+        db.session.add(PrecoAlvo(ticker=ticker, preco_alvo=alvo, ativo=True))
+
+    db.session.commit()
+    print("Seed de metas iniciais aplicado.")
 
 
 # Quando você roda `python app.py`, esse bloco executa

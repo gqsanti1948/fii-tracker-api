@@ -1,0 +1,141 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Metas de Alocação</h1>
+
+<form method="POST">
+
+  <!-- ── Camada 0: Meta por Fundo ───────────────────────────────── -->
+  <h2>Por Fundo</h2>
+  <div class="table-wrapper">
+    <table>
+      <thead>
+        <tr>
+          <th>Ticker</th>
+          <th>Segmento</th>
+          <th>Categoria</th>
+          <th>Meta %</th>
+          <th>Atual %</th>
+          <th>Gap</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for g in gaps %}
+        <tr>
+          <td><strong>{{ g.ticker }}</strong></td>
+          <td><span class="badge">{{ g.segmento }}</span></td>
+          <td><span class="badge">{{ g.categoria }}</span></td>
+          <td>
+            <input type="number" name="meta_{{ g.ticker }}"
+                   value="{{ g.meta_pct }}" step="0.5" min="0" max="100"
+                   style="width:70px; text-align:right;">
+          </td>
+          <td>{{ g.peso_real }}%</td>
+          <td class="{{ 'positive' if g.gap <= 0 else 'negative' }}">
+            {{ '%+.1f'|format(g.gap) }} p.p.
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <!-- ── Camada 1: Guardrails por Segmento ──────────────────────── -->
+  <h2 style="margin-top:2rem;">Por Segmento</h2>
+  <div class="table-wrapper">
+    <table>
+      <thead>
+        <tr>
+          <th>Segmento</th>
+          <th>Meta % <small>(soma dos fundos)</small></th>
+          <th>Atual %</th>
+          <th>Piso %</th>
+          <th>Teto %</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for seg in meta_segmentos %}
+        {% set atual = peso_seg.get(seg.segmento, 0) %}
+        <tr>
+          <td><strong>{{ seg.segmento }}</strong></td>
+          <td>—</td>
+          <td class="{{ 'negative' if atual < seg.piso_pct or atual > seg.teto_pct else '' }}">
+            {{ atual }}%
+          </td>
+          <td>
+            <input type="number" name="piso_seg_{{ seg.segmento }}"
+                   value="{{ seg.piso_pct }}" step="0.5" min="0" max="100"
+                   style="width:70px; text-align:right;">
+          </td>
+          <td>
+            <input type="number" name="teto_seg_{{ seg.segmento }}"
+                   value="{{ seg.teto_pct }}" step="0.5" min="0" max="100"
+                   style="width:70px; text-align:right;">
+          </td>
+          <td>
+            {% if atual < seg.piso_pct %}
+              <span class="badge badge-red">Abaixo do piso</span>
+            {% elif atual > seg.teto_pct %}
+              <span class="badge badge-red">Acima do teto</span>
+            {% else %}
+              <span class="badge badge-green">OK</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <!-- ── Camada 2: Guardrails por Categoria ─────────────────────── -->
+  <h2 style="margin-top:2rem;">Por Categoria</h2>
+  <div class="table-wrapper">
+    <table>
+      <thead>
+        <tr>
+          <th>Categoria</th>
+          <th>Atual %</th>
+          <th>Piso %</th>
+          <th>Teto %</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for cat in meta_categorias %}
+        {% set atual = peso_cat.get(cat.categoria, 0) %}
+        <tr>
+          <td><strong>{{ cat.categoria.title() }}</strong></td>
+          <td class="{{ 'negative' if atual < cat.piso_pct or atual > cat.teto_pct else '' }}">
+            {{ atual }}%
+          </td>
+          <td>
+            <input type="number" name="piso_cat_{{ cat.categoria }}"
+                   value="{{ cat.piso_pct }}" step="0.5" min="0" max="100"
+                   style="width:70px; text-align:right;">
+          </td>
+          <td>
+            <input type="number" name="teto_cat_{{ cat.categoria }}"
+                   value="{{ cat.teto_pct }}" step="0.5" min="0" max="100"
+                   style="width:70px; text-align:right;">
+          </td>
+          <td>
+            {% if atual < cat.piso_pct %}
+              <span class="badge badge-red">Abaixo do piso</span>
+            {% elif atual > cat.teto_pct %}
+              <span class="badge badge-red">Acima do teto</span>
+            {% else %}
+              <span class="badge badge-green">OK</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <div style="margin-top:1.5rem;">
+    <button type="submit" class="btn">Salvar Metas</button>
+  </div>
+
+</form>
+{% endblock %}

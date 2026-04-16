@@ -78,3 +78,91 @@ class HistoricoPatrimonio(db.Model):
 
     def __repr__(self):
         return f"<HistoricoPatrimonio {self.data_hora} | R${self.valor:.2f}>"
+
+
+# ─────────────────────────────────────────────
+#  FEATURE: META DE ALOCAÇÃO
+# ─────────────────────────────────────────────
+
+class MetaFundo(db.Model):
+    """
+    Camada 0 — peso-alvo de cada FII individualmente.
+    É a fonte de verdade: as metas de segmento e categoria
+    são derivadas somando os fundos de cada grupo.
+    """
+    __tablename__ = "meta_fundos"
+
+    ticker    = db.Column(db.String(10), primary_key=True)   # "BTLG11"
+    segmento  = db.Column(db.String(50), nullable=False)     # "Logística"
+    categoria = db.Column(db.String(20), nullable=False)     # "tijolo" | "papel" | "multi"
+    meta_pct  = db.Column(db.Float,      nullable=False)     # 8.0 (% do patrimônio)
+
+    def __repr__(self):
+        return f"<MetaFundo {self.ticker} | meta {self.meta_pct}%>"
+
+
+class MetaSegmento(db.Model):
+    """
+    Camada 1 — guardrails por segmento.
+    Piso e teto definem a faixa aceitável; se a alocação real sair
+    desse intervalo, o motor de recomendação emite alerta.
+    """
+    __tablename__ = "meta_segmentos"
+
+    segmento = db.Column(db.String(50), primary_key=True)
+    piso_pct = db.Column(db.Float, nullable=False)   # mínimo aceitável (%)
+    teto_pct = db.Column(db.Float, nullable=False)   # máximo aceitável (%)
+
+    def __repr__(self):
+        return f"<MetaSegmento {self.segmento} | {self.piso_pct}–{self.teto_pct}%>"
+
+
+class MetaCategoria(db.Model):
+    """
+    Camada 2 — guardrails macro (papel / tijolo / multi).
+    Proteção contra desequilíbrio macroeconômico na carteira.
+    """
+    __tablename__ = "meta_categorias"
+
+    categoria = db.Column(db.String(20), primary_key=True)   # "tijolo" | "papel" | "multi"
+    piso_pct  = db.Column(db.Float, nullable=False)
+    teto_pct  = db.Column(db.Float, nullable=False)
+
+    def __repr__(self):
+        return f"<MetaCategoria {self.categoria} | {self.piso_pct}–{self.teto_pct}%>"
+
+
+class ConfigCenario(db.Model):
+    """
+    Cenário macro atual. Existe sempre exatamente 1 linha (id=1).
+    O cenário orienta quais categorias de FII priorizar no aporte.
+    """
+    __tablename__ = "config_cenario"
+
+    id              = db.Column(db.Integer, primary_key=True)
+    cenario         = db.Column(db.String(20), nullable=False, default="estavel")
+    # "corte"       → Selic caindo   → priorizar tijolo
+    # "estavel"     → Selic mantida  → priorizar papel
+    # "volatilidade"→ Crise          → modo acumulação
+    selic_atual       = db.Column(db.Float, nullable=False, default=14.75)
+    modo_acumulacao   = db.Column(db.Boolean, nullable=False, default=False)
+    atualizado_em     = db.Column(db.Date, nullable=True)
+
+    def __repr__(self):
+        return f"<ConfigCenario {self.cenario} | Selic {self.selic_atual}%>"
+
+
+class PrecoAlvo(db.Model):
+    """
+    Preço-alvo de compra por ticker.
+    Se cotacao_atual < preco_alvo, o motor emite alerta de oportunidade
+    e eleva a prioridade desse fundo na recomendação.
+    """
+    __tablename__ = "precos_alvo"
+
+    ticker     = db.Column(db.String(10), primary_key=True)
+    preco_alvo = db.Column(db.Float, nullable=False)
+    ativo      = db.Column(db.Boolean, nullable=False, default=True)
+
+    def __repr__(self):
+        return f"<PrecoAlvo {self.ticker} | R${self.preco_alvo}>"

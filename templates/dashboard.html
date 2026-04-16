@@ -164,7 +164,14 @@
 {% endif %}
 
 {% if historico | length >= 1 %}
-<h2>Evolução do Patrimônio</h2>
+<div style="display:flex; align-items:baseline; gap:1rem; margin-bottom:0.25rem;">
+  <h2 style="margin:0;">Evolução do Patrimônio</h2>
+  {% if mercado_aberto %}
+  <span class="badge badge-green" style="font-size:11px;">● Mercado aberto · {{ hora_brasilia_str }} Brasília</span>
+  {% else %}
+  <span class="badge" style="background:var(--surface2);color:var(--text-muted);font-size:11px;">● Mercado fechado · {{ hora_brasilia_str }} Brasília</span>
+  {% endif %}
+</div>
 <div class="range-selector">
     {% for r in [('1D','1d'),('1S','1w'),('1M','1m'),('3M','3m'),('6M','6m'),('1A','1y'),('2A','2y'),('5A','5y'),('YTD','ytd'),('Máx','max')] %}
     <button class="range-btn{% if loop.last %} active{% endif %}"
@@ -172,7 +179,11 @@
     {% endfor %}
 </div>
 <div class="chart-container" style="max-width: 720px;">
+    <p id="labelDia1D" style="display:none; font-size:12px; color:var(--text-muted); margin:0 0 0.25rem;"></p>
     <canvas id="graficoHistorico"></canvas>
+    <div id="semDados1D" style="display:none; align-items:center; justify-content:center;
+         height:120px; color:var(--text-muted); font-size:14px; background:var(--card);
+         border-radius:8px; margin-top:0.5rem;"></div>
 </div>
 <script>
     /* Lista completa de snapshots: [{data_hora: "DD/MM/YYYY HH:MM", valor: 0.0}, ...] */
@@ -185,6 +196,23 @@
         return new Date(+y, +m - 1, +d, +h, +min);
     }
 
+    const mercadoAberto = {{ 'true' if mercado_aberto else 'false' }};
+
+    /* Converte horário local do browser para Brasília (UTC-3) */
+    function agoraBrasilia() {
+        return new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Sao_Paulo' }));
+    }
+
+    function mercadoAbertoAgora() {
+        const br   = agoraBrasilia();
+        const hora = br.getHours();
+        const dia  = br.getDay(); // 0=dom, 6=sab
+        return dia >= 1 && dia <= 5 && hora >= 10 && hora < 17;
+    }
+
+    const canvasEl   = document.getElementById('graficoHistorico');
+    const semDadosEl = document.getElementById('semDados1D');
+
     function buildDataset(periodo) {
         const agora = new Date();
         let inicio;
@@ -194,7 +222,9 @@
         } else if (periodo === 'ytd') {
             inicio = new Date(agora.getFullYear(), 0, 1);
         } else if (periodo === '1d') {
-            inicio = new Date(agora.getFullYear(), agora.getMonth(), agora.getDate());
+            /* Filtra apenas snapshots de hoje (horário local) */
+            const hoje = new Date(agora.getFullYear(), agora.getMonth(), agora.getDate());
+            inicio = hoje;
         } else {
             const dias = { '1w': 7, '1m': 30, '3m': 90, '6m': 180, '1y': 365, '2y': 730, '5y': 1825 };
             inicio = new Date(agora);
@@ -205,17 +235,44 @@
             ? todosSnapshots.filter(s => parseDatetime(s.data_hora) >= inicio)
             : todosSnapshots;
 
-        if (!filtrado.length) filtrado = todosSnapshots.slice(-1);
-
         if (periodo === '1d') {
-            /* Intraday: eixo HH:MM, 1 ponto por snapshot */
+            /* Só considera snapshots dentro do pregão (10h–17h Brasília).
+               Isso descarta automaticamente dados antigos gravados fora do horário. */
+            function durantePregao(snap) {
+                const hora = parseInt(snap.data_hora.split(' ')[1]?.split(':')[0] ?? 0);
+                return hora >= 10 && hora < 17;
+            }
+
+            const todosValidos = todosSnapshots.filter(durantePregao);
+            if (!todosValidos.length) return null;
+
+            /* Descobre o dia mais recente que tem snapshots de pregão */
+            const ultimaData     = todosValidos[todosValidos.length - 1].data_hora.split(' ')[0];
+            const dadosUltimoDia = todosValidos.filter(s => s.data_hora.startsWith(ultimaData));
+
+            /* Hoje (DD/MM/YYYY no fuso Brasília) */
+            const br  = agoraBrasilia();
+            const dd  = String(br.getDate()).padStart(2, '0');
+            const mm  = String(br.getMonth() + 1).padStart(2, '0');
+            const aa  = br.getFullYear();
+            const hojeStr = `${dd}/${mm}/${aa}`;
+
+            const ehHoje   = ultimaData === hojeStr;
+            const labelDia = ehHoje ? null : ultimaData;
+
             return {
-                labels: filtrado.map(s => s.data_hora.split(' ')[1]),
-                valores: filtrado.map(s => s.valor),
+                labels:   dadosUltimoDia.map(s => s.data_hora.split(' ')[1]),
+                valores:  dadosUltimoDia.map(s => s.valor),
+                labelDia,
             };
         }
 
-        /* Demais períodos: agrupa por dia, mantém último valor do dia */
+        if (!filtrado.length) filtrado = todosSnapshots.slice(-1);
+
+        /* Demais períodos: 1 ponto por dia = último snapshot do dia.
+           Como todosSnapshots vem ordenado por data_hora ASC do banco,
+           cada iteração sobrescreve o mesmo dia com um valor mais recente —
+           ao final porDia[dia] contém sempre o fechamento do pregão. */
         const porDia = {};
         filtrado.forEach(s => {
             const dia = s.data_hora.split(' ')[0];
@@ -231,7 +288,31 @@
         document.querySelectorAll('.range-btn').forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
 
-        const { labels, valores } = buildDataset(periodo);
+        const dataset = buildDataset(periodo);
+
+        /* Sem histórico nenhum → exibe mensagem mínima */
+        if (dataset === null) {
+            if (graficoHistorico) { graficoHistorico.destroy(); graficoHistorico = null; }
+            canvasEl.style.display   = 'none';
+            semDadosEl.style.display = 'flex';
+            semDadosEl.textContent   = 'Nenhum dado disponível ainda.';
+            return;
+        }
+
+        canvasEl.style.display   = 'block';
+        semDadosEl.style.display = 'none';
+
+        /* Legenda de data para o 1D quando mostrando último pregão */
+        semDadosEl.style.display = 'none';
+        const labelDiaEl = document.getElementById('labelDia1D');
+        if (dataset.labelDia) {
+            labelDiaEl.textContent   = `Último pregão: ${dataset.labelDia}`;
+            labelDiaEl.style.display = 'block';
+        } else {
+            labelDiaEl.style.display = 'none';
+        }
+
+        const { labels, valores } = dataset;
         const positivo = valores.length < 2 || valores[valores.length - 1] >= valores[0];
         const cor = positivo ? '16, 185, 129' : '239, 68, 68';
 
@@ -276,6 +357,32 @@
 
     selecionarPeriodo('max', document.querySelector('.range-btn.active'));
 </script>
+{% endif %}
+
+<!-- Widget de metas -->
+{% set gaps_negativos = gaps | selectattr('gap', '>', 0) | list %}
+{% if gaps_negativos or gaps %}
+<div class="widget-metas">
+  <div class="widget-metas-header">
+    <span>Desvios da Meta</span>
+    <a href="/recomendar" class="btn" style="padding:0.25rem 0.75rem; font-size:12px;">Recomendar aporte →</a>
+  </div>
+  <div class="widget-metas-items">
+    {% for g in (gaps | sort(attribute='gap', reverse=True))[:5] %}
+    {% set barra = ((g.peso_real / g.meta_pct * 100) | round | int) if g.meta_pct > 0 else 0 %}
+    {% set barra = barra if barra <= 100 else 100 %}
+    <div class="widget-meta-item">
+      <span class="widget-meta-ticker">{{ g.ticker }}</span>
+      <span class="widget-meta-bar-wrap">
+        <span class="widget-meta-bar" data-width="{{ barra }}"></span>
+      </span>
+      <span class="widget-meta-pct {{ 'negative' if g.gap > 0 else 'positive' }}">
+        {{ g.peso_real }}% / {{ g.meta_pct }}%
+      </span>
+    </div>
+    {% endfor %}
+  </div>
+</div>
 {% endif %}
 
 <!-- Tabela de posições -->
@@ -330,4 +437,11 @@
     <a href="/posicoes">Adicionar primeira posição →</a>
 </p>
 {% endif %}
+
+<script>
+    /* Aplica largura das barras de meta (evita Jinja2 em style="") */
+    document.querySelectorAll('.widget-meta-bar[data-width]').forEach(el => {
+        el.style.width = el.dataset.width + '%';
+    });
+</script>
 {% endblock %}

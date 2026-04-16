@@ -305,6 +305,98 @@ small { font-size: 11px; }
     color: var(--blue);
 }
 
+/* ========== BADGES EXTRA ========== */
+.badge-red {
+    background: rgba(239, 68, 68, 0.15);
+    color: #ef4444;
+}
+
+.alert-warning {
+    background: rgba(245, 158, 11, 0.1);
+    border: 1px solid var(--warning);
+    color: var(--warning);
+}
+
+/* ========== RECOMENDAÇÃO ========== */
+.rec-header {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1.5rem;
+    padding: 1rem 1.25rem;
+    background: var(--card);
+    border-radius: 8px;
+    margin-bottom: 1.5rem;
+    font-size: 14px;
+    color: var(--text-muted);
+}
+
+.rec-card {
+    background: var(--card);
+    border-radius: 8px;
+    padding: 1rem 1.25rem;
+    border-left: 3px solid var(--border);
+}
+.rec-principal  { border-left-color: var(--accent); }
+.rec-secundaria { border-left-color: var(--blue); }
+.rec-sobra      { border-left-color: var(--text-muted); }
+.rec-acumulacao { border-left-color: var(--warning); }
+
+.rec-tipo   { font-size: 11px; font-weight: 700; color: var(--text-muted); margin-bottom: 0.4rem; text-transform: uppercase; letter-spacing: .05em; }
+.rec-body   { display: flex; align-items: baseline; gap: 0.75rem; margin-bottom: 0.3rem; }
+.rec-ticker { font-size: 18px; font-weight: 700; }
+.rec-preco  { color: var(--text-muted); font-size: 14px; }
+.rec-custo  { color: var(--accent); font-weight: 600; }
+.rec-motivo { font-size: 12px; color: var(--text-muted); }
+
+/* ========== WIDGET METAS ========== */
+.widget-metas {
+    background: var(--card);
+    border-radius: 10px;
+    padding: 1rem 1.25rem;
+    margin-bottom: 2rem;
+}
+
+.widget-metas-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-weight: 600;
+    font-size: 14px;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: .05em;
+    margin-bottom: 0.75rem;
+}
+
+.widget-metas-items { display: flex; flex-direction: column; gap: 0.5rem; }
+
+.widget-meta-item {
+    display: grid;
+    grid-template-columns: 70px 1fr 90px;
+    align-items: center;
+    gap: 0.75rem;
+    font-size: 13px;
+}
+
+.widget-meta-ticker { font-weight: 700; }
+
+.widget-meta-bar-wrap {
+    height: 6px;
+    background: var(--surface2);
+    border-radius: 3px;
+    overflow: hidden;
+}
+
+.widget-meta-bar {
+    display: block;
+    height: 100%;
+    background: var(--accent);
+    border-radius: 3px;
+    transition: width 0.4s ease;
+}
+
+.widget-meta-pct { text-align: right; color: var(--text-muted); }
+
 /* ========== MISC ========== */
 .empty-state {
     text-align: center;

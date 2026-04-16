@@ -1,0 +1,112 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Configurações</h1>
+
+<!-- ── Cenário Macro (automático) ─────────────────────────────── -->
+<h2>Cenário Macro</h2>
+<div class="form-card" style="margin-bottom:2.5rem;">
+
+  {% if acumulacao_eleitoral %}
+  <div class="alert alert-warning" style="margin-bottom:1.25rem;">
+    ⚠ Corrida eleitoral (jul–ago) — modo acumulação ativado automaticamente.
+  </div>
+  {% elif aviso_campanha %}
+  <div class="alert alert-warning" style="margin-bottom:1.25rem;">
+    ⚠ Campanha eleitoral em curso (set–out) — cautela extra no aporte.
+  </div>
+  {% endif %}
+
+  <div class="form-grid" style="margin-bottom:1.25rem;">
+    <div class="form-group">
+      <span class="card-label">Taxa Selic</span>
+      <span class="card-value">
+        {{ "%.2f"|format(cenario.selic_atual) if cenario else "—" }}%
+      </span>
+    </div>
+    <div class="form-group">
+      <span class="card-label">Cenário</span>
+      <span class="card-value
+        {% if cenario and cenario.cenario == 'corte' %}positive
+        {% elif cenario and cenario.cenario == 'volatilidade' %}negative{% endif %}">
+        {% if cenario %}
+          {% if cenario.cenario == 'corte' %}Corte de juros
+          {% elif cenario.cenario == 'estavel' %}Juros estáveis
+          {% else %}Volatilidade{% endif %}
+        {% else %}—{% endif %}
+      </span>
+    </div>
+    <div class="form-group">
+      <span class="card-label">Modo Acumulação</span>
+      <span class="card-value">
+        {% if cenario and cenario.modo_acumulacao %}
+          <span class="badge badge-purple">Ativo</span>
+        {% else %}
+          <span style="color:var(--text-dim);">Inativo</span>
+        {% endif %}
+      </span>
+    </div>
+  </div>
+
+  <div style="font-size:12px; color:var(--text-dim); margin-bottom:1.25rem;">
+    Cenário definido automaticamente com base nas decisões recentes do COPOM.
+    Corte ≥ 0,5 p.p. → <em>Corte</em> · Alta ou 2 reuniões sem corte → <em>Volatilidade</em> · Demais → <em>Estável</em>.
+    Julho e agosto de ano eleitoral ativam o modo acumulação.
+  </div>
+
+  <form method="POST" style="display:inline;">
+    <input type="hidden" name="acao" value="atualizar_selic">
+    <button type="submit" class="btn">Atualizar Selic agora</button>
+  </form>
+  {% if cenario and cenario.atualizado_em %}
+  <small style="color:var(--text-dim); margin-left:1rem;">
+    Última atualização: {{ cenario.atualizado_em.strftime("%d/%m/%Y") }}
+  </small>
+  {% endif %}
+</div>
+
+<!-- ── Preços-Alvo ─────────────────────────────────────────────── -->
+<h2>Preços-Alvo de Compra</h2>
+<form method="POST">
+  <input type="hidden" name="acao" value="precos">
+  <div class="table-wrapper" style="margin-bottom:1.5rem;">
+    <table>
+      <thead>
+        <tr>
+          <th>Ticker</th>
+          <th>Preço-Alvo (R$)</th>
+          <th>Ativo</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for p in precos %}
+        <tr>
+          <td><strong>{{ p.ticker }}</strong></td>
+          <td>
+            <input type="number" name="alvo_{{ p.ticker }}"
+                   value="{{ p.preco_alvo }}" step="0.01" min="0" style="width:120px;">
+          </td>
+          <td>
+            <select name="ativo_{{ p.ticker }}">
+              <option value="1" {{ 'selected' if p.ativo }}>Sim</option>
+              <option value="0" {{ 'selected' if not p.ativo }}>Não</option>
+            </select>
+          </td>
+        </tr>
+        {% endfor %}
+        <tr>
+          <td>
+            <input type="text" name="novo_ticker" placeholder="Novo ticker"
+                   maxlength="10" style="width:100px; text-transform:uppercase;">
+          </td>
+          <td>
+            <input type="number" name="novo_alvo" placeholder="Preço-alvo"
+                   step="0.01" min="0" style="width:120px;">
+          </td>
+          <td><small style="color:var(--text-dim);">novo</small></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+  <button type="submit" class="btn">Salvar Preços-Alvo</button>
+</form>
+{% endblock %}
