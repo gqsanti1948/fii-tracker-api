@@ -18,7 +18,8 @@ from services import (calcular_resumo_carteira, buscar_cotacao,
                       buscar_historico_patrimonio, calcular_gaps_metas,
                       calcular_recomendacao, registrar_snapshot_patrimonio,
                       mercado_aberto, hora_brasilia,
-                      atualizar_cenario_automatico, _periodo_eleitoral)
+                      atualizar_cenario_automatico, _periodo_eleitoral,
+                      calcular_previsao_proventos, buscar_proventos_mensais)
 from datetime import date
 
 # Blueprint = um "módulo" de rotas. Permite organizar rotas em arquivos separados.
@@ -181,7 +182,10 @@ def proventos():
         return redirect(url_for("main.proventos"))
 
     todos_proventos = Provento.query.order_by(Provento.data_pagamento.desc()).all()
-    return render_template("proventos.html", proventos=todos_proventos)
+    previsao        = calcular_previsao_proventos()
+    proventos_meses = buscar_proventos_mensais()
+    return render_template("proventos.html", proventos=todos_proventos,
+                           previsao=previsao, proventos_meses=proventos_meses)
 
 
 @bp.route("/proventos/deletar/<int:id>")

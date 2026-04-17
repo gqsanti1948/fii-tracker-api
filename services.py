@@ -267,6 +267,95 @@ def registrar_snapshot_patrimonio():
     print(f"Snapshot registrado: R$ {resumo['patrimonio_atual']:.2f} às {agora.strftime('%H:%M')} (Brasília)")
 
 
+def buscar_proventos_mensais() -> list[dict]:
+    """
+    Agrupa proventos por mês em ordem cronológica.
+    Retorna lista de {mes: "MM/YYYY", total: float}.
+    """
+    proventos = Provento.query.order_by(Provento.data_pagamento).all()
+    por_mes: dict[str, float] = {}
+    for p in proventos:
+        chave = p.data_pagamento.strftime("%m/%Y")
+        por_mes[chave] = round(por_mes.get(chave, 0) + p.valor_total, 2)
+
+    # Ordena cronologicamente (strptime garante ordem correta mesmo com meses < 10)
+    from datetime import datetime as _dt
+    itens = sorted(por_mes.items(), key=lambda x: _dt.strptime(x[0], "%m/%Y"))
+    return [{"mes": k, "total": v} for k, v in itens]
+
+
+def calcular_previsao_proventos() -> dict:
+    """
+    Prevê o próximo provento de cada ticker da carteira com base no histórico local.
+
+    Para cada ticker:
+      - Data estimada: mesmo dia do mês do último pagamento, mês seguinte.
+      - Valor estimado: média dos últimos 3 proventos registrados.
+      - sem_historico=True quando não há proventos registrados ainda.
+
+    Retorna dict com lista de previsões (todos os tickers da carteira)
+    e total estimado para tickers com histórico.
+    """
+    from calendar import monthrange
+
+    def _proximo_mes(dt: date) -> date:
+        mes = dt.month + 1
+        ano = dt.year
+        if mes > 12:
+            mes = 1
+            ano += 1
+        dia = min(dt.day, monthrange(ano, mes)[1])
+        return date(ano, mes, dia)
+
+    cotas_por_ticker: dict[str, int] = {}
+    for pos in Posicao.query.all():
+        cotas_por_ticker[pos.ticker] = cotas_por_ticker.get(pos.ticker, 0) + pos.quantidade
+
+    hoje = hora_brasilia().date()
+
+    previsoes = []
+    for ticker in sorted(cotas_por_ticker):
+        historico = (
+            Provento.query
+            .filter_by(ticker=ticker)
+            .order_by(Provento.data_pagamento.desc())
+            .limit(6)
+            .all()
+        )
+
+        if not historico:
+            previsoes.append({
+                "ticker":           ticker,
+                "ultimo_pagamento": None,
+                "valor_estimado":   None,
+                "proxima_data":     None,
+                "status":           None,
+                "sem_historico":    True,
+            })
+            continue
+
+        ultimos3  = historico[:3]
+        valor_est = round(sum(p.valor_total for p in ultimos3) / len(ultimos3), 2)
+        prox_data = _proximo_mes(historico[0].data_pagamento)
+        status    = "previsto" if prox_data >= hoje else "aguardando"
+
+        previsoes.append({
+            "ticker":           ticker,
+            "ultimo_pagamento": historico[0].data_pagamento,
+            "valor_estimado":   valor_est,
+            "proxima_data":     prox_data,
+            "status":           status,
+            "sem_historico":    False,
+        })
+
+    previsoes.sort(key=lambda x: (x["sem_historico"], x["proxima_data"] or date.max))
+    total_estimado = round(
+        sum(p["valor_estimado"] for p in previsoes if not p["sem_historico"]), 2
+    )
+
+    return {"previsoes": previsoes, "total_estimado": total_estimado}
+
+
 def buscar_historico_patrimonio():
     """
     Retorna lista de snapshots ordenados por data_hora.
